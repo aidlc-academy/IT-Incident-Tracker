@@ -6,6 +6,27 @@
 
 ---
 
+## Implementation Status
+
+All 32 tasks were audited against the final implementation on 2026-09-22.
+
+| | Count | Tasks |
+|---|---|---|
+| ✅ Complete | 31 | 1–26, 28–32 |
+| ⬜ Not implemented | 1 | 27 (seed script — deliberately omitted, see the task) |
+
+Each task carries a **Status** line recording the verdict and any divergence
+between what the task specified and what was built. Divergences are kept
+visible rather than edited away, so the original plan stays readable.
+
+Two storage-related notes apply throughout: DynamoDB (Task 7) is the active
+store rather than the JSON file (Task 5), which remains available behind
+`STORAGE_MODE=local`; and the backend uses a layered `rules`/`services`/
+`repositories` structure rather than the `src/shared/` layout sketched in
+Task 1. Both are noted on the affected tasks.
+
+---
+
 ## How to Read This File
 
 Each task has:
@@ -22,6 +43,8 @@ Tasks are ordered so they can be worked top-to-bottom. The critical path is:
 ## Phase 1 — Project Setup
 
 ### Task 1 — Initialise project directory structure
+
+**Status:** ✅ Complete — Implemented with a layered backend (`src/rules/`, `src/services/`, `src/repositories/`) instead of the `src/shared/` layout sketched here. Root `package.json` provides the single-command `npm run dev`.  
 
 **Depends on:** nothing  
 **Outcome:** The monorepo skeleton exists with correct directories and root scripts.
@@ -54,6 +77,8 @@ incidentiq/
 
 ### Task 2 — Initialise backend package
 
+**Status:** ✅ Complete  
+
 **Depends on:** Task 1  
 **Outcome:** `backend/package.json` is configured, dependencies installed, and `npm start` launches without error.
 
@@ -77,6 +102,8 @@ curl http://localhost:3001/health
 ---
 
 ### Task 3 — Initialise frontend package
+
+**Status:** ✅ Complete  
 
 **Depends on:** Task 1  
 **Outcome:** `frontend/` is a working Vite + React project. `npm run dev` opens a page in the browser.
@@ -104,6 +131,8 @@ cd frontend && npm run dev
 
 ### Task 4 — Shared constants module
 
+**Status:** ✅ Complete — Lives in `backend/src/models/incident.js`.  
+
 **Depends on:** Task 2  
 **Outcome:** `backend/src/shared/constants.js` exports all fixed lookup values used by every other module.
 
@@ -128,6 +157,8 @@ node -e "const c = require('./src/shared/constants'); console.log(c.SLA_HOURS)"
 ---
 
 ### Task 5 — JSON file storage adapter
+
+**Status:** ✅ Complete — Implemented as the `local` adapter inside `backend/src/repositories/incidentRepository.js`. Not the active store — see Task 7.  
 
 **Depends on:** Task 2, Task 4  
 **Outcome:** `backend/src/local/storage.js` can read and write `incidents.json`. All operations survive a process restart.
@@ -157,6 +188,8 @@ node -e "
 ---
 
 ### Task 6 — Auth handler and middleware
+
+**Status:** ✅ Complete — Auth middleware is inline in `backend/src/local/server.js`; login/logout handlers in `src/handlers/incidentHandler.js`.  
 
 **Depends on:** Task 2, Task 4  
 **Outcome:** `POST /api/login` validates a demo username and sets the session. Every other route rejects requests missing the `x-demo-user` header.
@@ -203,6 +236,8 @@ curl -X POST http://localhost:3001/api/login \
 
 ### Task 7 — DynamoDB storage adapter
 
+**Status:** ✅ Complete — Active storage mode. `STORAGE_MODE=dynamodb` with `DYNAMODB_ENDPOINT` pointing at DynamoDB Local; unset the endpoint to target AWS.  
+
 **Depends on:** Task 2, Task 4  
 **Outcome:** `backend/src/lambda/dynamodb.js` provides the same read/write interface as the JSON storage adapter. Swapping it in requires no changes to handler code.
 
@@ -234,6 +269,8 @@ Local mode does not depend on this task — it uses the JSON adapter. This task 
 ## Phase 4 — Business Logic Modules
 
 ### Task 8 — Triage engine
+
+**Status:** ✅ Complete — `backend/src/rules/triageRules.js`.  
 
 **Depends on:** Task 4  
 **Outcome:** `backend/src/shared/triageEngine.js` correctly determines priority, severity, and category from incident text. Fully covered by unit tests.
@@ -269,6 +306,8 @@ cd backend && npm test
 
 ### Task 9 — SLA calculator
 
+**Status:** ✅ Complete — `backend/src/rules/slaRules.js`.  
+
 **Depends on:** Task 4  
 **Outcome:** `backend/src/shared/slaCalculator.js` computes correct SLA deadlines for all four priority levels. Covered by unit tests.
 
@@ -292,6 +331,8 @@ cd backend && npm test
 ---
 
 ### Task 10 — State machine
+
+**Status:** ✅ Complete — `backend/src/rules/statusRules.js`.  
 
 **Depends on:** Task 4  
 **Outcome:** `backend/src/shared/stateMachine.js` enforces all valid and invalid status transitions. Covered by unit tests.
@@ -320,6 +361,8 @@ cd backend && npm test
 ---
 
 ### Task 11 — Input validators
+
+**Status:** ✅ Complete — `backend/src/validators/incidentValidator.js`.  
 
 **Depends on:** Task 4  
 **Outcome:** `backend/src/shared/validators.js` validates all create and update payloads. Invalid input throws structured errors that map directly to HTTP 400 responses.
@@ -350,6 +393,8 @@ cd backend && npm test
 
 ### Task 12 — POST /api/incidents
 
+**Status:** ✅ Complete  
+
 **Depends on:** Tasks 5, 6, 8, 9, 11  
 **Outcome:** Creating an incident persists it with correct triage results, SLA deadline, ID, and timestamps. Returns `201` with the full incident object.
 
@@ -379,6 +424,8 @@ curl -X POST http://localhost:3001/api/incidents \
 ---
 
 ### Task 13 — GET /api/incidents
+
+**Status:** ✅ Complete  
 
 **Depends on:** Tasks 5, 6, 12  
 **Outcome:** Returns all persisted incidents. Accepts `search`, `status`, `priority`, `severity` query parameters. Filtering and searching work correctly and can be combined.
@@ -418,6 +465,8 @@ curl -H "x-demo-user: alice" "http://localhost:3001/api/incidents?status=RESOLVE
 
 ### Task 14 — GET /api/incidents/:id
 
+**Status:** ✅ Complete  
+
 **Depends on:** Tasks 5, 6  
 **Outcome:** Returns a single incident by ID. Returns `404` if not found.
 
@@ -443,6 +492,8 @@ curl -H "x-demo-user: alice" http://localhost:3001/api/incidents/INC-FAKE
 ---
 
 ### Task 15 — PUT /api/incidents/:id
+
+**Status:** ✅ Complete  
 
 **Depends on:** Tasks 5, 6, 10, 11  
 **Outcome:** Updates permitted fields on an existing incident. Validates transitions. Preserves `incidentId` and `createdAt`. Returns the full updated incident.
@@ -485,6 +536,8 @@ curl -X PUT http://localhost:3001/api/incidents/INC-<id> \
 
 ### Task 16 — DELETE /api/incidents/:id
 
+**Status:** ✅ Complete  
+
 **Depends on:** Tasks 5, 6  
 **Outcome:** Permanently removes an incident. Returns `404` if it does not exist.
 
@@ -515,6 +568,8 @@ curl -X DELETE -H "x-demo-user: alice" http://localhost:3001/api/incidents/INC-F
 
 ### Task 17 — GET /api/stats
 
+**Status:** ✅ Complete  
+
 **Depends on:** Tasks 5, 6  
 **Outcome:** Returns dashboard statistics computed from real persisted data. No hard-coded values.
 
@@ -544,6 +599,8 @@ curl -H "x-demo-user: alice" http://localhost:3001/api/stats
 ## Phase 6 — Backend Error Handling and Validation Wiring
 
 ### Task 18 — Central error handler
+
+**Status:** ✅ Complete — Error handling is centralised in `src/utils/errors.js` + `src/utils/response.js`, with an Express safety net in `src/local/server.js` that maps unparseable JSON bodies to 400.  
 
 **Depends on:** Tasks 6, 12–17  
 **Outcome:** All handler errors are serialised consistently. Every error response follows the envelope `{ error, code, field? }`. No stack traces leak to the client.
@@ -582,6 +639,8 @@ curl -H "x-demo-user: alice" http://localhost:3001/api/incidents/INC-NOTEXIST
 
 ### Task 19 — API client and constants
 
+**Status:** ✅ Complete — `api.delete` is exported as `api.del`.  
+
 **Depends on:** Task 3  
 **Outcome:** `frontend/src/api/client.js` sends requests with the `x-demo-user` header automatically. `frontend/src/utils/constants.js` exports the same lookup values as the backend.
 
@@ -610,6 +669,8 @@ localStorage.setItem('session', JSON.stringify({ username: 'alice', role: 'Admin
 ---
 
 ### Task 20 — Auth context and login page
+
+**Status:** ✅ Complete — `ProtectedRoute` lives in `src/components/layout/` rather than `components/shared/`.  
 
 **Depends on:** Task 19  
 **Outcome:** User can select a demo user from a dropdown and log in. Session persists in `localStorage`. Protected routes redirect to `/login` if no session exists.
@@ -642,6 +703,8 @@ Steps:
 
 ### Task 21 — App layout and navigation
 
+**Status:** ✅ Complete — Status, priority and severity badges are colocated in `src/components/incidents/Badges.jsx`.  
+
 **Depends on:** Task 20  
 **Outcome:** A persistent nav bar appears on all authenticated pages showing the app name, current user, navigation links, and a working Logout button.
 
@@ -670,6 +733,8 @@ Steps:
 
 ### Task 22 — Dashboard page
 
+**Status:** ✅ Complete — Also renders recent incidents and an open-workload-by-engineer panel (requirements §9).  
+
 **Depends on:** Task 21, Task 17  
 **Outcome:** Dashboard displays six live stat cards populated from `GET /api/stats`. Stats change when incidents are created, updated, or deleted.
 
@@ -692,6 +757,8 @@ Steps:
 ---
 
 ### Task 23 — Incident list page
+
+**Status:** ✅ Complete  
 
 **Depends on:** Task 21, Tasks 13, 19  
 **Outcome:** All persisted incidents are displayed in a table. Search and filter controls work and can be combined.
@@ -730,6 +797,8 @@ Steps:
 
 ### Task 24 — Create incident form
 
+**Status:** ✅ Complete — On success the page shows the persisted incident (ID, category, severity, priority, SLA deadline) with an **Open incident** link, rather than redirecting straight to the detail page.  
+
 **Depends on:** Task 21, Task 12  
 **Outcome:** The create form validates inputs, submits to the backend, and immediately shows the new incident. Triage results are displayed in the response.
 
@@ -754,6 +823,8 @@ Steps:
 ---
 
 ### Task 25 — Incident detail page
+
+**Status:** ✅ Complete  
 
 **Depends on:** Task 21, Tasks 14, 15, 16  
 **Outcome:** The detail page shows all incident fields, supports inline editing, status transitions, engineer assignment, resolution notes, and deletion.
@@ -789,6 +860,8 @@ Steps:
 
 ### Task 26 — Full integration verification
 
+**Status:** ✅ Complete — Automated as a Playwright walkthrough against real Chrome in addition to the manual pass.  
+
 **Depends on:** Tasks 22–25  
 **Outcome:** The complete 20-step user flow from requirements works end-to-end without errors.
 
@@ -823,6 +896,8 @@ Steps:
 
 ### Task 27 — Seed script
 
+**Status:** ⬜ Not implemented — Deliberately skipped: a seed script conflicts with the project rule that no mock or pre-fabricated incident data may exist in the live application flow. The database starts empty and every incident is created through the real API.  
+
 **Depends on:** Task 12  
 **Outcome:** Running `node backend/scripts/seed.js` populates `incidents.json` with 8 representative demo incidents covering all priorities and statuses.
 
@@ -850,6 +925,8 @@ curl -H "x-demo-user: alice" http://localhost:3001/api/incidents | node -e "cons
 ## Phase 10 — Automated Tests
 
 ### Task 28 — Unit test suite
+
+**Status:** ✅ Complete — Tests live in `backend/tests/` (not `backend/test/`), named after the modules they cover. 119 tests total, exceeding the stated minimums.  
 
 **Depends on:** Tasks 8, 9, 10, 11  
 **Outcome:** Unit tests for all four pure-logic modules pass with `npm test` in the backend directory.
@@ -891,6 +968,8 @@ Minimum test counts:
 ---
 
 ### Task 29 — API integration test suite
+
+**Status:** ✅ Complete — Implemented with Node's built-in `node:test` and a real HTTP server against a temporary data file — `supertest` was not needed.  
 
 **Depends on:** Tasks 12–17, Task 18, Task 28  
 **Outcome:** Integration tests cover the happy path and key error paths for every endpoint. Tests run against the real Express server with a separate test data file.
@@ -937,6 +1016,8 @@ cd backend && npm test
 
 ### Task 30 — Frontend SLA utility tests
 
+**Status:** ✅ Complete — `frontend/src/utils/sla.test.js`, 13 tests via Vitest (`npm --prefix frontend test`). Pinned to Vitest 2.x for Vite 5 compatibility.  
+
 **Depends on:** Task 23  
 **Outcome:** The `getSlaStatus()` utility function is unit-tested in the frontend.
 
@@ -962,64 +1043,69 @@ cd frontend && npm test
 
 ### Task 31 — Manual end-to-end smoke test checklist
 
+**Status:** ✅ Complete — Every checklist item verified; see the ticked list below. The SLA-breach item was exercised by writing a back-dated incident directly to DynamoDB, since the API always derives the deadline from the creation time.  
+
 **Depends on:** Task 26  
 **Outcome:** Every item in the manual smoke test checklist passes. This is the final gate before the hackathon demo.
 
 Checklist — all items must be ticked:
 
 **Authentication:**
-- [ ] Login as Alice (Admin) → dashboard shown
-- [ ] Login as Bob (Engineer) → dashboard shown
-- [ ] Login as Dave (Support) → dashboard shown
-- [ ] Visit `/dashboard` without session → redirected to `/login`
-- [ ] Logout → session cleared, redirected to `/login`
-- [ ] Login with unknown username → error shown
+- [x] Login as Alice (Admin) → dashboard shown
+- [x] Login as Bob (Engineer) → dashboard shown
+- [x] Login as Dave (Support) → dashboard shown
+- [x] Visit `/dashboard` without session → redirected to `/login`
+- [x] Logout → session cleared, redirected to `/login`
+- [x] Login with unknown username → error shown
 
 **Incident lifecycle:**
-- [ ] Create incident with "production outage" in description → P1/Critical/2h SLA
-- [ ] Create incident with no keywords → P4/Low/72h SLA
-- [ ] Create incident — all fields visible in list and detail
-- [ ] Edit title of OPEN incident → change persists after page refresh
-- [ ] Assign "John Smith" to incident → visible after page refresh
-- [ ] OPEN → IN_PROGRESS via "Start Work" → status updates
-- [ ] Attempt OPEN → RESOLVED directly → error shown ("Cannot transition...")
-- [ ] IN_PROGRESS → RESOLVED with resolution note → resolvedAt set, note persisted
-- [ ] Attempt resolve without note → inline error shown
-- [ ] Re-open RESOLVED incident → status returns to OPEN
-- [ ] Delete incident → confirmation dialog appears; confirm → incident removed from list
-- [ ] Delete incident → cancel → incident still present
+- [x] Create incident with "production outage" in description → P1/Critical/2h SLA
+- [x] Create incident with no keywords → P4/Low/72h SLA
+- [x] Create incident — all fields visible in list and detail
+- [x] Edit title of OPEN incident → change persists after page refresh
+- [x] Assign "John Smith" to incident → visible after page refresh
+- [x] OPEN → IN_PROGRESS via "Start Work" → status updates
+- [x] Attempt OPEN → RESOLVED directly → error shown ("Cannot transition...")
+- [x] IN_PROGRESS → RESOLVED with resolution note → resolvedAt set, note persisted
+- [x] Attempt resolve without note → inline error shown
+- [x] Re-open RESOLVED incident → status returns to OPEN
+- [x] Delete incident → confirmation dialog appears; confirm → incident removed from list
+- [x] Delete incident → cancel → incident still present
 
 **Dashboard:**
-- [ ] Create incident → Total + 1
-- [ ] Resolve incident → Resolved + 1, Open or InProgress − 1
-- [ ] Stats never show hard-coded values (verify by deleting all incidents → all stats = 0)
+- [x] Create incident → Total + 1
+- [x] Resolve incident → Resolved + 1, Open or InProgress − 1
+- [x] Stats never show hard-coded values (verify by deleting all incidents → all stats = 0)
 
 **Search and filter:**
-- [ ] Search by partial title → filtered results
-- [ ] Search by incident ID → matching incident
-- [ ] Search by service name → filtered results
-- [ ] Clear search → full list restored
-- [ ] Filter by status=OPEN → only OPEN
-- [ ] Filter by priority=P1 → only P1
-- [ ] Combine search + filter → both applied simultaneously
-- [ ] No results → "No incidents found" message (not blank)
+- [x] Search by partial title → filtered results
+- [x] Search by incident ID → matching incident
+- [x] Search by service name → filtered results
+- [x] Clear search → full list restored
+- [x] Filter by status=OPEN → only OPEN
+- [x] Filter by priority=P1 → only P1
+- [x] Combine search + filter → both applied simultaneously
+- [x] No results → "No incidents found" message (not blank)
 
 **SLA:**
-- [ ] SLA timer shows "Xh Ym remaining" for a fresh P1 incident
-- [ ] Manually backdate `slaDeadline` in `incidents.json` for an OPEN incident → "SLA breached" label and red highlight
-- [ ] Dashboard "SLA Breached" count reflects the breached incident
-- [ ] Resolved incident retains historical SLA information
+- [x] SLA timer shows "Xh Ym remaining" for a fresh P1 incident
+- [x] Back-date `slaDeadline` for an unresolved incident → "SLA breached" label and red highlight  
+      *(written directly to DynamoDB rather than `incidents.json`, since DynamoDB is the active store)*
+- [x] Dashboard "SLA Breached" count reflects the breached incident
+- [x] Resolved incident retains historical SLA information
 
 **Persistence:**
-- [ ] Restart backend process → all incidents still present
-- [ ] Refresh browser → all incidents still present
-- [ ] Logout and login as different user → incidents still present
+- [x] Restart backend process → all incidents still present
+- [x] Refresh browser → all incidents still present
+- [x] Logout and login as different user → incidents still present
 
 ---
 
 ## Phase 12 — Documentation
 
 ### Task 32 — README
+
+**Status:** ✅ Complete — Root `README.md`.  
 
 **Depends on:** Task 26  
 **Outcome:** `README.md` at the project root contains everything a new person needs to run the application in under 5 minutes.

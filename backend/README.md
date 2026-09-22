@@ -1,6 +1,10 @@
 # IncidentIQ — Backend
 
-AI-assisted IT incident triage and SLA management. Hackathon MVP backend.
+IT incident triage and SLA management. Hackathon MVP backend.
+
+Triage is **deterministic and rule-based** — ordered keyword matching over a
+fixed list. No machine-learning model, no LLM, and no external AI service is
+involved anywhere in this codebase.
 
 ---
 
@@ -31,7 +35,9 @@ Frontend (React + Vite)
 ┌──────────────────────────────────────────┐
 │  LOCAL MODE                              │
 │  Express.js  (port 3001)                 │
-│  └── JSON file  (data/incidents.json)    │
+│  └── DynamoDB Local  (port 8000)         │
+│      (JSON-file fallback available via   │
+│       STORAGE_MODE=local)                │
 └──────────────────────────────────────────┘
 
         OR
@@ -53,31 +59,54 @@ modes — the same code runs locally and on Lambda.
 
 - Node.js 18 or later
 - npm 9 or later
-- No Docker, no database installation, no AWS account needed for local mode
+- A Java runtime (11+) for DynamoDB Local
+- No Docker and no AWS account needed for local mode
+
+The JSON-file fallback (`STORAGE_MODE=local`) needs neither Java nor DynamoDB.
 
 ---
 
 ## Quick Start — Local Mode
+
+Local development runs against **DynamoDB Local**, so the same storage adapter
+and wire protocol are used as on AWS. See the root `README.md` for how to fetch
+the DynamoDB Local runtime into `tools/dynamodb-local/`.
 
 ```bash
 # 1. Install dependencies
 cd backend
 npm install
 
-# 2. Copy environment template
-cp .env.example .env        # defaults are fine for local mode
+# 2. Copy the environment template, then set:
+#      STORAGE_MODE=dynamodb
+#      DYNAMODB_ENDPOINT=http://localhost:8000
+#      DYNAMODB_TABLE=incidentiq-incidents
+cp .env.example .env
 
-# 3. Start the server
+# 3. Start DynamoDB Local (separate terminal) and create the table once
+npm run db:start
+npm run db:create-table
+# → [IncidentIQ] Created table 'incidentiq-incidents' at http://localhost:8000.
+
+# 4. Start the server
 npm start
 # → [IncidentIQ] Backend running on http://localhost:3001
-# → [IncidentIQ] Storage mode: local
+# → [IncidentIQ] Storage mode: dynamodb
 
-# 4. Verify
+# 5. Verify
 curl http://localhost:3001/health
 # → {"success":true,"data":{"status":"healthy"}}
 ```
 
-Data is stored in `data/incidents.json` and persists across restarts.
+From the repository root, `npm run dev` performs steps 3–4 for the backend and
+starts the frontend too.
+
+Incidents persist in DynamoDB Local's on-disk database (`data/*.db`) and survive
+restarts of both the database and the API.
+
+**JSON-file fallback.** Setting `STORAGE_MODE=local` switches the repository to
+`data/incidents.json` instead. It needs no Java and no DynamoDB, and is useful
+for quick experiments, but DynamoDB is the storage this project targets.
 
 ---
 
@@ -86,12 +115,15 @@ Data is stored in `data/incidents.json` and persists across restarts.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3001` | Express listen port |
-| `STORAGE_MODE` | `local` | `local` (JSON file) or `dynamodb` |
-| `DATA_FILE` | `./data/incidents.json` | JSON storage path (local mode only) |
+| `STORAGE_MODE` | `local` | `dynamodb` or `local` (JSON file) |
+| `DYNAMODB_TABLE` | — | Table name; required when `STORAGE_MODE=dynamodb` |
+| `DYNAMODB_ENDPOINT` | *(unset)* | DynamoDB Local URL, e.g. `http://localhost:8000`. **Leave unset on AWS** so the SDK resolves the real regional endpoint. |
 | `AWS_REGION` | `us-east-1` | AWS region (DynamoDB mode only) |
-| `DYNAMODB_TABLE` | — | DynamoDB table name (DynamoDB mode only) |
+| `DATA_FILE` | `./data/incidents.json` | JSON storage path (local mode only) |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `local` | Placeholders the SDK needs in order to sign requests to DynamoDB Local. Applied **only when `DYNAMODB_ENDPOINT` is set**; on AWS the default credential chain is used untouched. |
 
-**Never commit AWS credentials.** Supply them via `~/.aws/credentials` or IAM role.
+**Never commit AWS credentials.** `.env` is git-ignored; supply real credentials
+via `~/.aws/credentials` or an IAM role.
 
 ---
 
@@ -112,27 +144,37 @@ All protected API routes require the `x-demo-user` header set to one of these us
 ## Triage Rules
 
 Rules are evaluated in priority order — the **first matching rule wins**.
-Matching is case-insensitive and searches both `title` and `description`.
+Matching is case-insensitive and searches `title`, `description` **and**
+`businessImpact` concatenated together.
 
 | Priority | Severity | SLA | Trigger keywords |
 |----------|----------|-----|-----------------|
-| P1 | Critical | 2 h | `production outage`, `database unavailable`, `all users affected`, `complete failure`, `system down`, `site down` |
-| P2 | High | 8 h | `payment failure`, `authentication failure`, `multiple users`, `data loss`, `security breach`, `login failure` |
-| P3 | Medium | 24 h | `latency`, `slow`, `intermittent`, `performance issue`, `timeout`, `degraded` |
+| P1 | Critical | 2 h | `production outage`, `database unavailable`, `all users affected`, `complete failure`, `complete service outage`, `total outage`, `system down`, `site down` |
+| P2 | High | 8 h | `payment failure`, `authentication failure`, `multiple users affected`, `multiple users`, `data loss`, `security breach`, `major functionality`, `major business`, `login failure`, `sign in failure` |
+| P3 | Medium | 24 h | `latency`, `slow performance`, `slow response`, `slow`, `intermittent`, `performance issue`, `timeout`, `degraded`, `high response time`, `partial outage` |
 | P4 | Low | 72 h | *(default — no keywords matched)* |
 
-Category is derived from the `service` field:
+Category is derived from the `service` field, matched **in this order** (first
+substring hit wins):
 
 | Service contains | Category |
 |-----------------|----------|
-| `payment` / `payment gateway` | Payment |
-| `authentication` / `auth` | Authentication |
-| `database` / `db` | Database |
+| `payment gateway`, `payment` | Payment |
+| `authentication`, `auth` | Authentication |
+| `database`, `db` | Database |
 | `backend api` | Backend API |
 | `backend` | Backend |
-| `frontend` | Frontend |
 | `api` | API |
+| `frontend` | Frontend |
+| `network` | Network |
+| `storage` | Storage |
+| `email` | Email |
+| `notification` | Notifications |
+| `search` | Search |
 | *(anything else)* | General |
+
+Because `api` is tested before `frontend`, a service named "Frontend API" is
+categorised as `API`.
 
 ---
 
@@ -171,6 +213,7 @@ remaining time from `slaDeadline − now`. An incident is SLA-breached when
 | `RESOLVED` | `OPEN` | ✓ allowed (reopen) |
 | `OPEN` | `RESOLVED` | ✗ rejected — 409 |
 | `RESOLVED` | `IN_PROGRESS` | ✗ rejected — 409 |
+| *any* | *itself* | ✗ rejected — 409 (`"Incident is already X."`) |
 
 ---
 
@@ -572,9 +615,10 @@ cd backend
 # Full suite (unit + integration)
 npm test
 
-# Unit tests only (no server needed)
+# Unit tests only (no server, no database needed)
 node --test tests/triageRules.test.js tests/slaRules.test.js \
-             tests/statusRules.test.js tests/incidentValidator.test.js
+             tests/statusRules.test.js tests/incidentValidator.test.js \
+             tests/lambdaHandler.test.js
 
 # Integration tests only
 node --test tests/api.test.js
@@ -584,12 +628,13 @@ node --test tests/api.test.js
 
 | Suite | Tests | What is covered |
 |-------|-------|-----------------|
-| `triageRules.test.js` | 26 | All P1–P4 keywords, case-insensitive match, first-match order, all triage examples A–D, service→category |
-| `slaRules.test.js` | 15 | All four SLA durations, deadline arithmetic, breach detection, remaining time |
+| `triageRules.test.js` | 27 | All P1–P4 keywords, case-insensitive match, first-match order, `businessImpact` scanning, all triage examples A–D, service→category |
+| `slaRules.test.js` | 16 | All four SLA durations, deadline arithmetic, breach detection, remaining time |
 | `statusRules.test.js` | 15 | All allowed/forbidden transitions, `applyTransition` patch, resolution note validation |
-| `incidentValidator.test.js` | 21 | Required fields, length limits, engineer list, status enum, update partials |
+| `incidentValidator.test.js` | 19 | Required fields, length limits, engineer list, status enum, update partials |
 | `api.test.js` | 42 | Full HTTP lifecycle: health, login, CRUD, triage A–D, SLA P1–P4, transitions, stats, persistence |
-| **Total** | **119** | |
+| `lambdaHandler.test.js` | 20 | Lambda router under both API Gateway payload formats (1.0 and 2.0), auth, CORS, 404 routing |
+| **Total** | **139** | |
 
 ---
 
@@ -681,9 +726,13 @@ backend/
 │   ├── slaRules.test.js
 │   ├── statusRules.test.js
 │   ├── incidentValidator.test.js
+│   ├── lambdaHandler.test.js    ← Lambda router, both API Gateway payload formats
 │   └── api.test.js              ← Integration tests (real HTTP, temp file)
+├── scripts/
+│   └── createTable.js           ← Idempotent DynamoDB table creation
 ├── data/
-│   └── incidents.json           ← Local storage (git-ignored)
+│   ├── shared-local-instance.db ← DynamoDB Local database (git-ignored)
+│   └── incidents.json           ← JSON fallback storage (git-ignored)
 ├── .env.example
 ├── .gitignore
 ├── package.json

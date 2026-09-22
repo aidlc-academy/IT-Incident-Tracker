@@ -50,7 +50,27 @@ function parseBody(event) {
 
 function getUser(headers) {
   const h = headers || {};
+  // API Gateway lower-cases header names on payload format 2.0 but preserves
+  // the client's casing on 1.0, so accept either spelling.
   return h['x-demo-user'] || h['X-Demo-User'] || null;
+}
+
+/**
+ * Normalise an API Gateway event into { httpMethod, path, headers, query }.
+ *
+ * serverless.yml wires this function to `httpApi` events, which use payload
+ * format 2.0 (`requestContext.http.method` + `rawPath`). Payload format 1.0
+ * (REST API / `http` events) uses `httpMethod` + `path` instead. Supporting
+ * both keeps the handler working whichever event source is configured.
+ */
+function normaliseEvent(event) {
+  const v2 = event.requestContext && event.requestContext.http;
+  return {
+    httpMethod: v2 ? v2.method : event.httpMethod,
+    path: (v2 ? event.rawPath || v2.path : event.path) || '',
+    headers: event.headers || {},
+    query: event.queryStringParameters || {},
+  };
 }
 
 function requireAuth(headers) {
@@ -66,13 +86,12 @@ function requireAuth(headers) {
 // ───────────────────────────────────────────────────────────────────────────
 
 exports.handler = async (event) => {
+  const { httpMethod, path, headers, query: qs } = normaliseEvent(event);
+
   // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
+  if (httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: corsHeaders(), body: '' };
   }
-
-  const { httpMethod, path, queryStringParameters, headers } = event;
-  const qs = queryStringParameters || {};
 
   try {
     // ── Health ──────────────────────────────────────────────────────────
