@@ -1,0 +1,5 @@
+node_modules/
+venv/
+
+# DynamoDB Local runtime (downloaded jar, ~50MB) — see backend/README.md
+tools/dynamodb-local/
