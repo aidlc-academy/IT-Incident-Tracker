@@ -12,7 +12,9 @@
     "dev:api": "wait-on tcp:8000 && npm --prefix backend run db:create-table && npm --prefix backend start",
     "dev:web": "wait-on tcp:3001 && npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
-    "test": "npm --prefix backend test"
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "test:backend": "npm --prefix backend test",
+    "test:frontend": "npm --prefix frontend test"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

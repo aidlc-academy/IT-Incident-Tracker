@@ -3,3 +3,6 @@ venv/
 
 # DynamoDB Local runtime (downloaded jar, ~50MB) — see backend/README.md
 tools/dynamodb-local/
+
+# AWS CLI installer payload (189MB) — local tooling, not part of the project
+Amazon-cli/
