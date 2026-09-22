@@ -136,7 +136,10 @@ async function updateIncident(id, body, repo) {
   let updated = { ...existing };
 
   // Apply status transition through the state machine (handles resolvedAt, resolutionNote).
-  if (patch.status && patch.status !== existing.status) {
+  // Every supplied status goes through the machine, including one equal to the
+  // current status — that is an invalid transition ("Incident is already X"),
+  // not a silent no-op.
+  if (patch.status) {
     const transitionPatch = applyTransition(existing, patch.status, patch.resolutionNote || body.resolutionNote);
     updated = { ...updated, ...transitionPatch };
     // Remove status and resolutionNote from plain patch so they aren't overwritten again below

@@ -1,0 +1,24 @@
+{
+  "name": "incidentiq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IncidentIQ — AI-assisted IT incident triage and SLA management",
+  "scripts": {
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "db:start": "npm --prefix backend run db:start",
+    "db:create-table": "npm --prefix backend run db:create-table",
+    "dev": "concurrently -n db,api,web -c magenta,blue,green \"npm:dev:db\" \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:db": "npm --prefix backend run db:start",
+    "dev:api": "wait-on tcp:8000 && npm --prefix backend run db:create-table && npm --prefix backend start",
+    "dev:web": "wait-on tcp:3001 && npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "npm --prefix backend test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

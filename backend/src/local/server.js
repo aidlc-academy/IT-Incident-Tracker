@@ -9,7 +9,7 @@ const handler    = require('../handlers/incidentHandler');
 const { createRepository } = require('../repositories/incidentRepository');
 const { sendError }        = require('../utils/response');
 const { DEMO_USERS }       = require('../models/incident');
-const { UnauthorizedError } = require('../utils/errors');
+const { UnauthorizedError, ValidationError } = require('../utils/errors');
 
 // ───────────────────────────────────────────────────────────────────────────
 // App setup
@@ -90,6 +90,14 @@ app.use((req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   const { sendError } = require('../utils/response');
+
+  // express.json() raises a SyntaxError for an unparseable body. That is a bad
+  // request, not a server fault, so report it as 400 rather than letting it
+  // fall through to the generic 500.
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return sendError(res, new ValidationError('Request body is not valid JSON.'));
+  }
+
   return sendError(res, err);
 });
 
