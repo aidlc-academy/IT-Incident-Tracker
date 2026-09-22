@@ -3,8 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f5fa8'/%3E%3Ctext x='16' y='22' font-family='Segoe UI,Arial' font-size='15' font-weight='700' fill='white' text-anchor='middle'%3EIQ%3C/text%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M16 7l7 4v6.5c0 4-3 7-7 7.5-4-.5-7-3.5-7-7.5V11l7-4z' fill='white' opacity='.95'/%3E%3C/svg%3E" />
     <title>IncidentIQ</title>
+    <script>
+      // Resolve the theme before first paint so the page never flashes the
+      // wrong palette. Mirrors the logic in src/context/ThemeContext.jsx.
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
