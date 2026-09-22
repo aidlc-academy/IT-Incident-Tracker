@@ -3,3 +3,7 @@ node_modules/
 data/incidents.json
 *.zip
 .DS_Store
+
+# DynamoDB Local on-disk database and runtime metadata
+data/*.db
+dynamodb-local-metadata.json
