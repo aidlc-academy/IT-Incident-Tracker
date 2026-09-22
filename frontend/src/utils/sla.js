@@ -71,3 +71,20 @@ export function formatDateTime(iso) {
     minute: '2-digit',
   });
 }
+
+/**
+ * Compact timestamp for dense table cells, e.g. "22 Sep, 19:42".
+ * Omits the year to keep the list column narrow; the full value is shown on
+ * the incident detail page via formatDateTime().
+ */
+export function formatDateShort(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

@@ -9,7 +9,7 @@ import LoadingSpinner from '../components/shared/LoadingSpinner';
 import EmptyState from '../components/shared/EmptyState';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import { useToast } from '../context/ToastContext';
-import { formatDateTime } from '../utils/sla';
+import { formatDateShort } from '../utils/sla';
 
 /**
  * Search and filters are held in the URL and sent to the backend as query
@@ -205,7 +205,7 @@ export default function IncidentListPage() {
                   className="row--clickable"
                   onClick={() => navigate(`/incidents/${i.id}`)}
                 >
-                  <td className="mono">
+                  <td className="mono" data-label="ID">
                     {/* Keeps the ID a real link (middle-click, copy address)
                         without firing the row handler as well. */}
                     <Link
@@ -216,14 +216,14 @@ export default function IncidentListPage() {
                       {i.id}
                     </Link>
                   </td>
-                  <td className="cell--title">{i.title}</td>
-                  <td>{i.service}</td>
-                  <td><PriorityBadge priority={i.priority} /></td>
-                  <td><SeverityBadge severity={i.severity} /></td>
-                  <td><StatusBadge status={i.status} /></td>
-                  <td>{i.assignedEngineer || <span className="muted">Unassigned</span>}</td>
-                  <td><SlaTimer incident={i} /></td>
-                  <td className="nowrap muted">{formatDateTime(i.createdAt)}</td>
+                  <td className="cell--title" data-label="Title">{i.title}</td>
+                  <td data-label="Service">{i.service}</td>
+                  <td data-label="Priority"><PriorityBadge priority={i.priority} /></td>
+                  <td data-label="Severity"><SeverityBadge severity={i.severity} /></td>
+                  <td data-label="Status"><StatusBadge status={i.status} /></td>
+                  <td data-label="Assigned">{i.assignedEngineer || <span className="muted">Unassigned</span>}</td>
+                  <td data-label="SLA"><SlaTimer incident={i} /></td>
+                  <td className="nowrap muted" data-label="Created">{formatDateShort(i.createdAt)}</td>
                   {/* The row is clickable, so the action buttons must not let
                       their clicks bubble up into a navigation. */}
                   <td className="cell--actions" onClick={(e) => e.stopPropagation()}>
