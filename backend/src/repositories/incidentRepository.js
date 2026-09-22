@@ -94,7 +94,7 @@ function localAdapter(dataFile) {
 // DYNAMODB adapter
 // ───────────────────────────────────────────────────────────────────────────
 
-function dynamoAdapter(tableName, region) {
+function dynamoAdapter(tableName, region, endpoint) {
   // Lazy-load so the local mode doesn't require AWS SDK to be present.
   const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
   const {
@@ -105,7 +105,21 @@ function dynamoAdapter(tableName, region) {
     DeleteCommand,
   } = require('@aws-sdk/lib-dynamodb');
 
-  const raw    = new DynamoDBClient({ region });
+  // `endpoint` is only set when pointing at DynamoDB Local. On AWS it stays
+  // undefined and the SDK resolves the real regional endpoint and the IAM
+  // role credentials as normal.
+  const config = { region };
+  if (endpoint) {
+    config.endpoint = endpoint;
+    // DynamoDB Local ignores credentials but the SDK still refuses to sign a
+    // request without them, so supply placeholders when none are configured.
+    config.credentials = {
+      accessKeyId:     process.env.AWS_ACCESS_KEY_ID     || 'local',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'local',
+    };
+  }
+
+  const raw    = new DynamoDBClient(config);
   const client = DynamoDBDocumentClient.from(raw);
 
   const PK = 'INCIDENT'; // partition key value — all incidents share one partition
@@ -232,14 +246,16 @@ function _stripKeys(item) {
  * @param {string}            [opts.dataFile]   used when mode === 'local'
  * @param {string}            [opts.tableName]  used when mode === 'dynamodb'
  * @param {string}            [opts.region]     used when mode === 'dynamodb'
+ * @param {string}            [opts.endpoint]   DynamoDB Local endpoint; omit for real AWS
  * @returns repository interface
  */
 function createRepository(mode, opts = {}) {
   if (mode === 'dynamodb') {
     const tableName = opts.tableName || process.env.DYNAMODB_TABLE;
     const region    = opts.region    || process.env.AWS_REGION || 'us-east-1';
+    const endpoint  = opts.endpoint  || process.env.DYNAMODB_ENDPOINT || undefined;
     if (!tableName) throw new Error('DYNAMODB_TABLE env var is required in dynamodb mode.');
-    return dynamoAdapter(tableName, region);
+    return dynamoAdapter(tableName, region, endpoint);
   }
 
   // Default: local JSON file
