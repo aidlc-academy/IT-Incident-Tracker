@@ -200,9 +200,21 @@ export default function IncidentListPage() {
             </thead>
             <tbody>
               {incidents.map((i) => (
-                <tr key={i.id}>
+                <tr
+                  key={i.id}
+                  className="row--clickable"
+                  onClick={() => navigate(`/incidents/${i.id}`)}
+                >
                   <td className="mono">
-                    <Link to={`/incidents/${i.id}`} className="link">{i.id}</Link>
+                    {/* Keeps the ID a real link (middle-click, copy address)
+                        without firing the row handler as well. */}
+                    <Link
+                      to={`/incidents/${i.id}`}
+                      className="link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {i.id}
+                    </Link>
                   </td>
                   <td className="cell--title">{i.title}</td>
                   <td>{i.service}</td>
@@ -212,7 +224,9 @@ export default function IncidentListPage() {
                   <td>{i.assignedEngineer || <span className="muted">Unassigned</span>}</td>
                   <td><SlaTimer incident={i} /></td>
                   <td className="nowrap muted">{formatDateTime(i.createdAt)}</td>
-                  <td className="cell--actions">
+                  {/* The row is clickable, so the action buttons must not let
+                      their clicks bubble up into a navigation. */}
+                  <td className="cell--actions" onClick={(e) => e.stopPropagation()}>
                     <button type="button" className="btn btn--sm" onClick={() => navigate(`/incidents/${i.id}`)}>
                       View
                     </button>
