@@ -1,0 +1,106 @@
+service: incidentiq-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'us-east-1'}
+  memorySize: 256
+  timeout: 10
+  logRetentionInDays: 7
+
+  environment:
+    DYNAMODB_TABLE: ${self:custom.tableName}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'   # reuse HTTP connections in Lambda
+    STORAGE_MODE: dynamodb
+    NODE_ENV: production
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - !GetAtt IncidentsTable.Arn
+
+custom:
+  tableName: incidentiq-incidents-${sls:stage}
+
+functions:
+  api:
+    handler: src/lambda/handler.handler
+    events:
+      # Health check — no auth
+      - httpApi:
+          path: /health
+          method: GET
+
+      # Auth endpoints — no auth header required
+      - httpApi:
+          path: /api/login
+          method: POST
+      - httpApi:
+          path: /api/logout
+          method: POST
+
+      # Incident CRUD
+      - httpApi:
+          path: /api/incidents
+          method: GET
+      - httpApi:
+          path: /api/incidents
+          method: POST
+      - httpApi:
+          path: /api/incidents/{id}
+          method: GET
+      - httpApi:
+          path: /api/incidents/{id}
+          method: PUT
+      - httpApi:
+          path: /api/incidents/{id}
+          method: DELETE
+
+      # Dashboard statistics
+      - httpApi:
+          path: /api/stats
+          method: GET
+
+      # CORS preflight — handled by API Gateway HTTP API automatically,
+      # but explicit OPTIONS routes here ensure the Lambda receives them.
+      - httpApi:
+          path: /{proxy+}
+          method: OPTIONS
+
+resources:
+  Resources:
+    IncidentsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain          # keep data on stack delete
+      Properties:
+        TableName: ${self:custom.tableName}
+        BillingMode: PAY_PER_REQUEST  # on-demand — no capacity planning needed
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+
+  Outputs:
+    ApiUrl:
+      Description: "API Gateway base URL"
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+    DynamoTableName:
+      Description: "DynamoDB table name"
+      Value: !Ref IncidentsTable
